@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snakes game</title>
+    <link rel="stylesheet" type="text/css" href="snakes.css">
+</head>
+
+<body>
+<div id="mainContainer">
+    <div id="login">
+        <div id="playerNameFormContainer">
+            <form id="loginForm" action="">
+                <input id="username" type="text" value="Username" autocomplete="off" autofocus/>
+                <button id="joinButton" type="submit">Join</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="game">
+        <canvas id="gameCanvas">Your browser does not support the HTML5 canvas tag.</canvas>
+    </div>
+
+    <div id="playerIdContainer"></div>
+    <div id="gameStats">Users: <span id="usersCount">0</span></div>
+</div>
+
+<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
+
+
+</body>
+</html>

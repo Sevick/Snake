@@ -91,7 +91,7 @@ function deleteBonus(id) {
     console.log("deleteBonus   id="+id);
     bonusCount--;
     var i = getObjIndexById(id);
-    delete gameobjs[i];
+    gameobjs.splice(i,1);
 }
 
 
@@ -150,7 +150,8 @@ function newPlayer(userId, socketId) {
     try {
         snake = newSnake(socketId, "red");
         snake.player = player;
-        player.id = userId;
+        player.id = getNextObjId();
+        player.name = userId;
         player.socket = socketId;
         players.push(player);
         player.snake = snake;
@@ -181,7 +182,7 @@ function deletePlayer(player) {
                 console.log("WARN: " + err);
             }
             deleteSnake(p.snake);
-            players.splice(getPlayerId(player), 1);
+            players.splice(players.indexOf(player), 1);
             //delete players[i];
             updateGameStats();
             break;
@@ -300,7 +301,7 @@ io.sockets.on('connection', function (socket) {
     });
 
     socket.on('usrCtrl', function (data, id_player) {
-        console.log("usrCtrl");
+        console.log("usrCtrl  socketId="+socket.id);
         p = getPlayerBySocket(socket);
         if (typeof(p)!=='undefined' && p!==null) {
             p.snake.direction = data;
@@ -310,6 +311,7 @@ io.sockets.on('connection', function (socket) {
         }
     });
 
+/*
     socket.on('pauseGame', function () {
         console.log("pauseGame");
         gamePaused = !gamePaused;
@@ -325,6 +327,9 @@ io.sockets.on('connection', function (socket) {
             p.snake.status = 'frozen';
         }
     });
+*/
+
+
 });
 
 
@@ -380,31 +385,32 @@ function snakeUpdate(snake) {
         if (fieldData(newHeadPoint.x, newHeadPoint.y) != 'empty') {
             //console.log(fieldData(newHeadPoint.x,newHeadPoint.y));
             var gameObject = getGameObjectById(fieldData(newHeadPoint.x, newHeadPoint.y));
-            console.log('Getting object by id:' + fieldData(newHeadPoint.x, newHeadPoint.y));
-            switch (gameObject.type) {
-                case 'bonus':
-                    // snake should eat the bonus
-                    //var bonus = getGameObjectById(fieldData(newHeadPoint.x, newHeadPoint.y));
-                    console.log("snake #" + snake.id + " eats bonus  grow:" + gameObject.grow + "   score:" + gameObject.score);
-                    deleteBonus(gameObject.id);
-                    snake.player.score += gameObject.score;
-                    snake.grow = snake.grow + gameObject.grow;
-                    break;
-                case 'snake':
-                    if (gameObject.body[0].x==newHeadPoint.x && gameObject.body[0].y==newHeadPoint.y){
-                        gameObject.status=='dead';
-                        //deletePlayer(gameObject.snake.player);
-                    }
-                default:
-                    snake.status = 'dead';
-                    console.log("Snake found something and die. It found: " + fieldData(newHeadPoint.x, newHeadPoint.y));
-                    break;
+            if (typeof(gameObject)!=='undefined') {
+                switch (gameObject.type) {
+                    case 'bonus':
+                        // snake should eat the bonus
+                        //var bonus = getGameObjectById(fieldData(newHeadPoint.x, newHeadPoint.y));
+                        console.log("snake #" + snake.id + " eats bonus  grow:" + gameObject.grow + "   score:" + gameObject.score);
+                        deleteBonus(gameObject.id);
+                        snake.player.score += gameObject.score;
+                        snake.grow = snake.grow + gameObject.grow;
+                        break;
+                    case 'snake':
+                        if (gameObject.body[0].x == newHeadPoint.x && gameObject.body[0].y == newHeadPoint.y) {
+                            gameObject.status = 'dead';
+                        }
+                    default:
+                        snake.status = 'dead';
+                        console.log("Snake found something and die. It found: " + gameObject.type);
+                        break;
+                }
+            }
+            else{
+                console.log("ERR: snake found undefined object");
             }
         }
         if (snake.status !== 'dead') {
-            //if(fieldData(newHeadPoint.x,newHeadPoint.y)=='empty'){
             // snake is alive and moving
-            //console.log("oldX="+snake.body[0].x+"  oldY="+snake.body[0].y+")   (newX="+newHeadPoint.x+"  newY="+newHeadPoint.y+")");
             if (snake.grow == 0) {
                 var tailPoint = snake.body.pop();
                 setFieldData(tailPoint,'empty');
@@ -413,24 +419,19 @@ function snakeUpdate(snake) {
                 //console.log("Snake is growing  grow="+snake.grow);
                 snake.grow--;
             }
-            setFieldData(newHeadPoint, snake.id, snake.type, snake.color);
             snake.body.unshift(newHeadPoint);
+            setFieldData(newHeadPoint, snake.id, snake.type, snake.color);
         }
     }
 
-/*
-    if (snake.status == 'dead') {
-        deletePlayer(snake.player)
-    }
-*/
 }
 
 
 function getGameObjectById(id) {
-    for (var i = 0; i < gameobjs.length; i++) {
-        if (gameobjs[i].id == id)
-            return gameobjs[i]
-    }
+    var index = gameobjs.map(function(el) {
+        return el.id;
+    }).indexOf(id);
+    return gameobjs[index];
 }
 
 function setFieldData(point, id, type, color) {
@@ -440,6 +441,12 @@ function setFieldData(point, id, type, color) {
     command.type = type;
     command.color = color;
     commandsStack.push(command);
+
+    var cellVal = new Object();
+    cellVal.id = id;
+    cellVal.type = type;
+    cellVal.color = color;
+    field[point.x + point.y*fieldWidth] = cellVal;
 }
 
 
@@ -460,8 +467,6 @@ function processCommandStack() {
 
 function getPlayerBySocket(socket) {
     for (var p of players){
-    //for (var i = 0, len = players.length; i < len; ++i) {
-    //    var p = players[i];
         if (p.socket == socket.id) {
             return p;
         }
@@ -469,24 +474,11 @@ function getPlayerBySocket(socket) {
 }
 
 
-function getPlayerId(player) {
-    for (var p of players) {
-        if (p === player)
-            return p;
-    }
-    return null;
-}
-
-
 function getObjIndexById(id) {
-    var i;
-    for (var gameobj of gameobjs) {
-        if (gameobj.id === id) {
-            return i;
-        }
-    }
-    console.log("ERR: getObjIndexById  id=" + id);
-    return null;
+    var index = gameobjs.map(function(el){
+        return el.id;
+    }).indexOf(id);
+    return index;
 }
 
 
@@ -508,14 +500,19 @@ function updateGameStats() {
 
 
 function updateGameData() {
-    //console.log("tick#"+tickNumber);
+
+    if (tickNumber%10==0) {
+        console.log("tick#" + tickNumber+ "  gameobjs.length="+gameobjs.length+"  players.length="+players.length);
+    }
     if (gamePaused)
         return;
 
     // update game data
     for (var i = 0; i < gameobjs.length; i++) {
-        if (typeof(gameobjs[i].update) != "undefined") {
-            gameobjs[i].update(gameobjs[i]);
+        if (typeof(gameobjs[i])!=='undefined') {
+            if (typeof(gameobjs[i].update) != "undefined") {
+                gameobjs[i].update(gameobjs[i]);
+            }
         }
     }
 
@@ -525,23 +522,32 @@ function updateGameData() {
     }
 
     // process commands in stack
-    processCommandStack();
-
-    for (var gameObject of gameobjs){
-        if (gameObject.type=='snake'){
-            if (gameObject.status=='dead')
-                deletePlayer(gameObject.player);
-        }
-    }
-
+    //processCommandStack();
     // process dead snake removal actions
-    processCommandStack();
+    //processCommandStack();
 
     // notify clients
     var gameData = new Object();
     gameData.commandsStack = commandsStack;
     io.sockets.emit('gameData', gameData);
     //console.log("Send commandsStack.length="+commandsStack.length);
+
+
+    for (var gameObject of gameobjs){
+        if (typeof(gameObject)!=='undefined') {
+            if (gameObject.type == 'snake') {
+                if (gameObject.status == 'dead')
+                    deletePlayer(gameObject.player);
+            }
+        }
+    }
+
+    // notify clients
+    var gameData = new Object();
+    gameData.commandsStack = commandsStack;
+    io.sockets.emit('gameData', gameData);
+
+
 
     // clear the stack
     commandsStack = [];

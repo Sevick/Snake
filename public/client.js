@@ -3,9 +3,10 @@ var userName = "";
 var gameWidth = 0;
 var gameHeight = 0;
 var canvas;
+var ctx;
 var cellSize = 10;
 var gameFieldColor = "#00005f";
-var gridColor="rgba(100,100,128,1)";
+var gridColor="rgba(100,100,128,0.5)";
 var snakeId;
 var field;
 
@@ -59,17 +60,17 @@ $('form').submit(function () {
 
 function drawEmptyGameField() {
     console.log("drawEmptyGameField");
-    canvas = document.getElementById("gameCanvas");
+    if (typeof(canvas)=='undefined')
+        canvas = document.getElementById("gameCanvas");
     var cellH=Math.floor((window.innerHeight-2)/(gameHeight));
     var cellW=Math.floor((window.innerWidth-2)/(gameWidth));
     cellSize= cellH<cellW ? cellH : cellW;
     canvas.width = gameWidth*cellSize;
     canvas.height = gameHeight*cellSize;
     canvas.style.margin="auto";
-    //document.getElementById("game").style.display = "block";
-    //document.getElementById("game").style.verticalAlign = "middle";
 
-    var ctx = canvas.getContext('2d');
+    if (typeof(ctx)=='undefined')
+        ctx = canvas.getContext('2d');
     ctx.beginPath();
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = "1";
@@ -85,52 +86,50 @@ function drawEmptyGameField() {
 }
 
 function drawData(x, y, id, type, color) {
-    canvas = document.getElementById("gameCanvas");
-    var ctx = canvas.getContext('2d');
+    if (typeof(canvas)=='undefined')
+        canvas = document.getElementById("gameCanvas");
+    if (typeof(ctx)=='undefined')
+        ctx = canvas.getContext('2d');
+
     if (id == 'empty') {
         //console.log("clearing x="+x+" y="+y);
         ctx.beginPath();
         ctx.fillStyle = gameFieldColor;
         ctx.strokeStyle = gridColor;
         ctx.lineWidth = "1";
-        ctx.rect(cellSize * x, cellSize * y, cellSize, cellSize);
+        ctx.rect(cellSize * x+2, cellSize * y+2, cellSize-2, cellSize-2);
         ctx.fill();
-        ctx.stroke();
     }
     else {
         if (id == snakeId) {
             ctx.beginPath();
-            //console.log("drawing x="+commandsStack[i].point.x+" y="+commandsStack[i].point.y);
             ctx.fillStyle = "red";
             ctx.strokeStyle = gridColor;
             ctx.lineWidth = "1";
-            ctx.rect(cellSize * x, cellSize * y, cellSize, cellSize);
+            ctx.rect(cellSize * x+2, cellSize * y+2, cellSize-2, cellSize-2);
             ctx.fill();
-            ctx.stroke();
+
         }
         else {
             ctx.beginPath();
-            //console.log("drawing x="+commandsStack[i].point.x+" y="+commandsStack[i].point.y+"  color:"+commandsStack[i].color);
+            ctx.strokeStyle = gridColor;
+            ctx.lineWidth = "1";
+
             if (type=='snake') {
-                ctx.fillStyle = "lightgrey";
+                ctx.fillStyle = "orange";
             }
             else {
                 ctx.fillStyle = color;
             }
 
-            ctx.strokeStyle = gridColor;
-            ctx.lineWidth = "1";
-
             if (type=='bonus'){
                 ctx.arc(cellSize*x+cellSize/2, cellSize * y+cellSize/2, cellSize/2-2, 0, 2*Math.PI);
             }
             else {
-                ctx.rect(cellSize*x, cellSize * y, cellSize, cellSize);
+                ctx.rect(cellSize*x+2, cellSize * y+2, cellSize-2, cellSize-2);
             }
             ctx.fill();
-            ctx.stroke();
         }
-
     }
 }
 

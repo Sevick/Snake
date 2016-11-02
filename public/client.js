@@ -9,6 +9,8 @@ var gameFieldColor = "#00005f";
 var gridColor="rgba(100,100,128,0.5)";
 var snakeId;
 var field;
+var playerColor;
+var enemyColors=true;
 
 function sendUserControl(msg) {
     socket.emit('usrCtrl', msg);
@@ -22,19 +24,35 @@ function sendPauseGame() {
     socket.emit('pauseGame');
 }
 
-$(document).keydown(function (e) {
+document.getElementById("usercolor").value="#"+Math.floor(Math.random()*16777215).toString(16);
+/*
+$( document ).ready(function() {
+    console.log("Generated color:");
+    console.log("#"+Math.floor(Math.random()*16777215).toString(16));
+});
+*/
+
+
+$("#game").keydown(function (e) {
     switch (e.keyCode) {
+        case 67:    // c
+            enemyColors=!enemyColors;
+            break;
+        case 83:
         case 40:
-            sendUserControl(2);
+            sendUserControl(2); //down
             break;
+        case 68:
         case 39:
-            sendUserControl(1);
+            sendUserControl(1); // right
             break;
+        case 87:
         case 38:
-            sendUserControl(0);
+            sendUserControl(0); // up
             break;
+        case 65:
         case 37:
-            sendUserControl(3);
+            sendUserControl(3); // left
             break;
         case 80 : //p
             sendFreezeSnake();
@@ -46,6 +64,8 @@ $(document).keydown(function (e) {
 });
 
 
+
+
 $('form').submit(function () {
     socket = io();
     setupSocket(socket);
@@ -53,6 +73,8 @@ $('form').submit(function () {
     console.log("form submit");
     var msg = new Object();
     msg.id = $('#username').val();
+    playerColor=$('#usercolor').val();
+    msg.color=playerColor;
     socket.emit('client_init', msg);
     return false;
 });
@@ -103,7 +125,7 @@ function drawData(x, y, id, type, color) {
     else {
         if (id == snakeId) {
             ctx.beginPath();
-            ctx.fillStyle = "red";
+            ctx.fillStyle = playerColor;
             ctx.strokeStyle = gridColor;
             ctx.lineWidth = "1";
             ctx.rect(cellSize * x+2, cellSize * y+2, cellSize-2, cellSize-2);
@@ -115,10 +137,10 @@ function drawData(x, y, id, type, color) {
             ctx.strokeStyle = gridColor;
             ctx.lineWidth = "1";
 
-            if (type=='snake') {
+            if (!enemyColors && type=='snake'){
                 ctx.fillStyle = "orange";
             }
-            else {
+            else{
                 ctx.fillStyle = color;
             }
 
@@ -141,6 +163,27 @@ function drawGameField() {
     }
 }
 
+function onclickCloseTopScore(){
+    console.log("onclickCloseTopScore");
+    closeTopScore();
+}
+
+
+function closeTopScore(){
+    document.getElementById("gameover").style.display="none";
+    document.getElementById("game").style.display = "none";
+    document.getElementById("login").style.display = "flex";
+    document.getElementById("username").focus();
+    document.getElementById("playerIdContainer").style.display="none";
+}
+
+
+function showGame(){
+    document.getElementById("game").style.display = "block";
+    document.getElementById("login").style.display = "none";
+    document.getElementById("playerIdContainer").style.display="block";
+    document.getElementById("game").focus();
+}
 
 function setupSocket(socket) {
     socket.on('correct', function (msg) {
@@ -152,20 +195,51 @@ function setupSocket(socket) {
         gameWidth = msg.gameWidth;
         gameHeight = msg.gameHeight;
         snakeId = msg.snakeId;
-        document.getElementById("game").style.display = "block";
-        document.getElementById("login").style.display = "none";
+        showGame();
         //document.getElementById("playerIdContainer").innerHTML = '<p>UserId: ' + msg.userId + '<br>SocketId: ' + msg.socketId + '</p>';
-        document.getElementById("playerIdContainer").innerHTML = '<p>UserId: ' + msg.userId +'</p>';
+        document.getElementById("playerId").innerHTML = '<p>'+ msg.userId +'</p>';
         drawEmptyGameField();
     });
 
     socket.on('gameover', function (msg) {
         console.log("gameover:  msg.score=" + msg.score);
-        socket.disconnect();
-        alert("\nGame over.\n\nYour score: " + msg.score + "\n\n");
-        document.getElementById("game").style.display = "none";
-        document.getElementById("login").style.display = "flex";
-        document.getElementById("username").focus();
+        //socket.disconnect();
+        
+        var topScores=msg.topscores;
+        //console.log("Top score:");
+        //console.log(topScores);
+        var topScoreTable=document.getElementById("topScoresTable");
+        topScoreTable.innerHTML="";
+        for (var topRecord in topScores){
+            //console.log("topRecord:");
+            //console.log(topScores[topRecord]);
+            var newRow=topScoreTable.insertRow();
+
+            var newCell=newRow.insertCell();
+            newCell.className="topScoreNameCell";
+            newCell.innerText=(topScores[topRecord]).name;
+            newCell=newRow.insertCell();
+            newCell.className="topScoreScoreCell";
+            newCell.innerText=(topScores[topRecord]).score;
+            newCell=newRow.insertCell();
+            newCell.className="topScoreDateCell";
+            newCell.innerText=dateToStr((topScores[topRecord]).date);
+            newCell.style.whiteSpace="nowrap";
+        }
+        document.getElementById("gameover").style.display='flex';
+
+        var gameoverDiv=document.getElementById("gameover");
+            gameoverDiv.focus();
+            gameoverDiv.addEventListener("keyup", function(KeyboardEvent) {
+                    if(KeyboardEvent.key == 'Enter'){  // the enter key code
+                        $('#closeTopScore').click();
+                        return false;
+                    }
+                }
+            );
+
+
+
     });
 
     socket.on('connecterr', function (msg) {
@@ -176,8 +250,27 @@ function setupSocket(socket) {
     });
 
     socket.on('gameStats', function (stats) {
-        console.log('usersCount:' + stats.usersCount);
         document.getElementById("usersCount").innerText = stats.usersCount;
+        var playersTbl=document.getElementById("playersTab");
+        playersTbl.innerHTML="";
+        for (var player in stats.players){
+            var newRow=playersTbl.insertRow();
+            var newCell=newRow.insertCell();
+            newCell.className="playersTableColorCol";
+            //newCell.innerHTML="<div width='"+cellSize+"' height='"+cellSize+"' background-color='"+stats.players[player].color+"'></div>";
+            newCell.style.backgroundColor=stats.players[player].color;
+            newCell=newRow.insertCell();
+            newCell.className="playersTableNameCol";
+            newCell.innerText=stats.players[player].name;
+            newCell=newRow.insertCell();
+            newCell.className="playersTableScoreCol";
+            newCell.innerText=stats.players[player].score;
+        }
+    });
+
+    socket.on('playerStats', function (stats) {
+        //console.log('score:' + stats.score);
+        document.getElementById("score").innerText = stats.score;
     });
 
     socket.on('gamefield', function (gamefield) {
@@ -199,5 +292,11 @@ function setupSocket(socket) {
         }
         //console.log("gameData done");
     });
+
+    function dateToStr(date){
+        var dt=new Date(date);
+        var str=dt.getDate()+"/"+dt.getMonth()+"/"+dt.getFullYear()+" "; // +dt.getHours()+":"+dt.getMinutes();
+        return str;
+    }
 }
 

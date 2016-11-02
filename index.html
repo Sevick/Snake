@@ -11,18 +11,31 @@
     <div id="login">
         <div id="playerNameFormContainer">
             <form id="loginForm" action="">
-                <input id="username" type="text" value="Username" autocomplete="off" autofocus/>
+                <input id="username" type="text" pattern=".{4,10}" required title="4 to 10 characters" maxlength="10" value="" autocomplete="off" autofocus placeholder="Username"/>
+                <input id="usercolor" type="color">
                 <button id="joinButton" type="submit">Join</button>
             </form>
         </div>
     </div>
 
-    <div id="game">
+    <div id="game" tabindex="-1">
         <canvas id="gameCanvas">Your browser does not support the HTML5 canvas tag.</canvas>
     </div>
 
-    <div id="playerIdContainer"></div>
-    <div id="gameStats">Users: <span id="usersCount">0</span></div>
+    <div id="gameover" tabindex="-1">
+        <p id="topCaption">Top players:</p>
+        <div id="topScoresDiv">
+            <table id="topScoresTable"></table>
+        </div>
+        <button id="closeTopScore" onclick="onclickCloseTopScore()" autofocus type="submit" value="submit">Close</button>
+    </div>
+
+    <div id="playerIdContainer"><span id="playerId" hidden="hidden"><br></span>Score: <span id="score"></span></div>
+
+    <div id="gameStats">
+        Users: <span id="usersCount">0</span>
+        <table id="playersTab"></table>
+    </div>
 </div>
 
 <script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>

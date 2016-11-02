@@ -5,17 +5,16 @@ var path = require('path');
 //var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
+var fs = require('fs');
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', function (req, res) {
-    //res.send('<h1>Your user ID: </h1>');
-    res.sendfile('index.html');
-});
 
 var players = [];
 var commandsStack = [];
 var gameobjs = [];
 var field = [];   // fieldWidth*fieldHeight  [GameObject 'objecttype']
+
+var topScores=[];
+var topCoresLimit=10;
 
 var fieldWidth = 100;
 var fieldHeight = 50;
@@ -33,11 +32,116 @@ var bonusesTypes = [{color: "green", grow: 1, score: 5, type: 'bonus'},
 var gamePaused = false;
 var tickNumber = 0;
 
+var config = {port: 3000};
 
-http.listen(3000, function () {
-    console.log('listening on *:3000');
-    field = getClearField();
-});
+function topScore(name,score,date){
+    this.name=name;
+    this.score=score;
+    this.date=date;
+}
+
+
+function checkTopScore(player){
+    if (typeof(player)==='undefined' || player==null ){
+        return (false);
+    }
+    console.log("checkTopScore");
+    var newRecord=false;
+    var topIdx = 0;
+    if (player.score==0 || player.score<topScores[topScores.length-1]) {
+        return false;
+    }
+
+    if (topScores.length<topCoresLimit){
+        newRecord =true;
+    }
+    else {
+        for (topIdx in topScores) {
+            if (topScores[topIdx].score < player.score) {
+                newRecord = true;
+                break;
+            }
+        }
+    }
+    if (newRecord){
+        console.log("Adding topscore record: idx="+topIdx+" with score="+player.score);
+        topScores.splice(topIdx, 0, new topScore(player.name,player.score, new Date()));
+        if (topScores.length>topCoresLimit){
+            topScores.splice(topCoresLimit);
+        }
+        writeTopScore();
+        return(true);
+    }
+    return(false);
+}
+
+
+function writeTopScore(){
+    //console.log("Before sort:");
+    //console.log(topScores);
+    topScores.sort(function(a,b){
+        console.log("a="+a+"  b="+b);
+        return (b.score-a.score);
+    });
+    //console.log("After sort:");
+    //console.log(topScores);
+    fs.writeFile(__dirname+'/data/snakes.score', JSON.stringify(topScores));
+}
+
+
+function init() {
+
+    console.log("Reading config");
+    try {
+        var configFile = fs.readFileSync(__dirname +'/config/snakes.conf', 'utf8', 'r');
+        if (typeof(configFile) === 'undefined' || configFile == null) {
+            writeConfig();
+        }
+        else{
+            config=JSON.parse(configFile);
+        }
+    }
+    catch (err){
+        writeConfig();
+    }
+
+
+    console.log("Loading top scores");
+    try {
+        var topScoreFile = fs.readFileSync(__dirname +'/data/snakes.score', 'utf8', 'r');
+        if (typeof(configFile) !== 'undefined' || configFile != null) {
+            console.log(topScoreFile);
+            topScores=JSON.parse(topScoreFile);
+            console.log(topScores);
+        }
+    }
+    catch (err){
+        console.log("Error reading /config/snakes.conf");
+    }
+
+    app.use(express.static(path.join(__dirname, 'public')));
+    //app.use(express.static(path.join(__dirname, 'config')));
+    //app.use(express.static(path.join(__dirname, 'data')));
+
+
+    app.get('/', function (req, res) {
+        res.sendfile(__dirname +'/index.html');
+    });
+
+    http.listen(config.port, function () {
+        console.log('listening on *:3000');
+        field = getClearField();
+    });
+}
+
+function writeConfig() {
+    console.log("writeConfig");
+    console.log(config);
+    fs.writeFileSync(__dirname +'/config/snakes.conf', JSON.stringify(config));
+}
+
+
+init();
 
 
 function Point(x, y) {
@@ -96,15 +200,14 @@ function deleteBonus(id) {
 
 
 //-----------------------------------------------
-function newSnake(playerId, pColor) {
+function newSnake(player) {
     console.log("newSnake");
     var snake = new Object();
 
     snake.id = getNextObjId();
-    snake.player = playerId;
+    snake.player = player;
     snake.type = 'snake';
     snake.body = [];
-    snake.color = pColor;
     snake.status = 'alive';
     snake.direction = Math.floor(Math.random() * 3);
     snake.update = snakeUpdate;
@@ -118,9 +221,9 @@ function newSnake(playerId, pColor) {
     }
     var nextPoint = movePoint(point, snake.direction);
     snake.body.push(nextPoint);
-    setFieldData(nextPoint, snake.id, snake.type, snake.color);
+    setFieldData(nextPoint, snake.id, snake.type, player.color);
     snake.body.push(point);
-    setFieldData(point, snake.id, snake.type, snake.color);
+    setFieldData(point, snake.id, snake.type, player.color);
     gameobjs.push(snake);
 
     console.log("new snake created");
@@ -143,16 +246,17 @@ function deleteSnake(snake) {
 
 
 //-----------------------------------------------
-function newPlayer(userId, socketId) {
+function newPlayer(userId, color, socket) {
     console.log("newPlayer");
 
     var player = new Object();
     try {
-        snake = newSnake(socketId, "red");
+        snake = newSnake(player, "red");
         snake.player = player;
         player.id = getNextObjId();
+        player.color = color;
         player.name = userId;
-        player.socket = socketId;
+        player.socket = socket;
         players.push(player);
         player.snake = snake;
         player.score = 0;
@@ -168,6 +272,7 @@ function newPlayer(userId, socketId) {
 
 function deletePlayer(player) {
     console.log("deletePlayer");
+    var istopscore=checkTopScore(player);
     console.log(player);
     for (var p of players) {
         if (p == player) {
@@ -175,7 +280,9 @@ function deletePlayer(player) {
             try {
                 var msg = new Object();
                 msg.score = player.score;
-                io.sockets.connected[player.socket].emit("gameover", msg);
+                msg.istopscore=istopscore;
+                msg.topscores=topScores;
+                io.sockets.connected[player.socket.id].emit("gameover", msg);
             }
             catch (err) {
                 console.log("WARN: user already disconnected");
@@ -189,6 +296,21 @@ function deletePlayer(player) {
         }
     }
 }
+
+function changeScore(player,scoreDelta){
+    player.score+=scoreDelta;
+    notifyPlayerStatsChanged(player);
+    updateGameStats();
+}
+
+
+
+function notifyPlayerStatsChanged(player){
+    var stats=new Object();
+    stats.score = player.score;
+    player.socket.emit('playerStats', stats);
+}
+
 
 //-----------------------------------------------
 function getClearField() {
@@ -258,13 +380,6 @@ function checkNextPoints(point, direction, count) {
 }
 
 
-function userId(userId, socketId) {
-    this.userId = userId;
-    this.socketId = socketId;
-    return this;
-}
-
-
 //-----------------------------------------------
 io.sockets.on('connection', function (socket) {
     console.log('connection');
@@ -273,7 +388,7 @@ io.sockets.on('connection', function (socket) {
         console.log("client_init.  data: " + data);
         console.log("playerid:" + data.id);
         try {
-            var player = newPlayer(data.id, socket.id);
+            var player = newPlayer(data.id, data.color, socket);
             console.log('playerId: ' + data.id + '  socketId: ' + socket.id);
             //servio.sockets.socket(id).emit('hello');
             var msg = new Object();
@@ -339,11 +454,6 @@ function sendField(socket) {
 }
 
 
-function logUsersCount() {
-    console.log('usersCount: ' + players.length);
-}
-
-
 function getDeltas(direction) {
     var deltas = new Object();
     deltas.deltaX = 0;
@@ -389,10 +499,9 @@ function snakeUpdate(snake) {
                 switch (gameObject.type) {
                     case 'bonus':
                         // snake should eat the bonus
-                        //var bonus = getGameObjectById(fieldData(newHeadPoint.x, newHeadPoint.y));
                         console.log("snake #" + snake.id + " eats bonus  grow:" + gameObject.grow + "   score:" + gameObject.score);
                         deleteBonus(gameObject.id);
-                        snake.player.score += gameObject.score;
+                        changeScore(snake.player,gameObject.score*players.length);
                         snake.grow = snake.grow + gameObject.grow;
                         break;
                     case 'snake':
@@ -420,7 +529,7 @@ function snakeUpdate(snake) {
                 snake.grow--;
             }
             snake.body.unshift(newHeadPoint);
-            setFieldData(newHeadPoint, snake.id, snake.type, snake.color);
+            setFieldData(newHeadPoint, snake.id, snake.type, snake.player.color);
         }
     }
 
@@ -466,11 +575,13 @@ function processCommandStack() {
 
 
 function getPlayerBySocket(socket) {
-    for (var p of players){
-        if (p.socket == socket.id) {
-            return p;
+    for (var p in players){
+        if (players[p].socket.id == socket.id) {
+            return players[p];
         }
     }
+    console.log("ERR: getPlayerBySocket can find player");
+    console.log(socket);
 }
 
 
@@ -493,8 +604,24 @@ function fieldData(x, y) {
 
 function updateGameStats() {
     var stats = new Object();
-    stats.usersCount = players.length;
-    io.sockets.emit('gameStats', stats);
+    try {
+        stats.usersCount = players.length;
+
+        playerDataArr=[];
+
+        for (player in players){
+            playerData = new Object();
+            playerData.name=players[player].name;
+            playerData.color=players[player].color;
+            playerData.score=players[player].score;
+            playerDataArr.push(playerData);
+        }
+        stats.players = playerDataArr;
+        io.sockets.emit('gameStats', stats);
+    }
+    catch(err){
+        console.log("updateGameStats failed. socket.id="+socket.id);
+    }
 
 }
 

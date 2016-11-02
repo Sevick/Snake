@@ -34,7 +34,7 @@
 }
 
 #loginForm {
-
+    vertical-align: middle;
 }
 
 #game {
@@ -66,6 +66,8 @@
     text-align: left;
     color: black;
     z-index: 20;
+    font-family: "Comic Sans MS", "Times New Roman", "Arial";
+    display: none;
 }
 
 #gameStats{
@@ -77,6 +79,7 @@
     text-align: left;
     color: black;
     z-index: 20;
+    font-family: "Comic Sans MS", "Times New Roman", "Arial";
 }
 
 #joinButton{
@@ -89,3 +92,102 @@
     min-width: 200px;
 }
 
+#usercolor{
+    padding: 0;
+    margin: 0;
+    min-width: 100px;
+}
+
+#gameover{
+    /*height: 90vh;*/
+    /*width: 50vw;*/
+    position: absolute;
+    top: 15vh;
+    left: 25vw;
+    right: 25vw;
+    bottom: 15vh;
+    margin: auto;
+    border: 1px solid green;
+    z-index: 20;
+    background-color: rgba(255,255,255,0.85);
+    display: none;
+    flex-direction: column;
+    text-align: center;
+    box-shadow: 10px 10px 5px #888888;
+    font-family: "Comic Sans MS", "Times New Roman", "Arial";
+}
+
+#topScoresDiv{
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    flex-flow: nowrap;
+    justify-content: center;
+}
+
+#topScoresTable{
+    width: 80%;
+    border: 0px solid black;
+    border-collapse: collapse;
+    overflow: auto;
+    margin: auto;
+}
+
+#topScoresTable td{
+    border: 0px solid black;
+    border-collapse: collapse;
+}
+
+#closeTopScore{
+    width: 250px;
+    height: 3em;
+    margin: auto;
+    margin-bottom: 20px;
+}
+
+#topCaption{
+    margin-top: 20px;
+    height: 5em;
+}
+
+.topScoreNameCell{
+    text-align: left;
+    width: 50%;
+    padding-left: 1em;
+    padding-bottom: 1em;
+    padding-right: 5px;
+    padding-top: 5px;
+}
+
+.topScoreScoreCell{
+    width: 20%;
+}
+
+.topScoreDateCell{
+    width: 30%;
+    text-align: center;
+    padding: 5px;
+}
+
+#playersTab{
+    margin-top: 1em;
+    width: 100%;
+}
+
+.playersTableNameCol {
+    width: 65%;
+    padding-left: 1em;
+    padding-right: 2em;
+}
+
+.playersTableColorCol{
+    width: 15%;
+}
+
+
+.playersTableScoreCol {
+    width: 20%;
+    text-align: right;
+}

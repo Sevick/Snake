@@ -11,6 +11,16 @@ var snakeId;
 var field;
 var playerColor;
 var enemyColors=true;
+var lastTiltLR = parseFloat(0) ;
+var lastTiltUD  = parseFloat(0);
+var startTiltLR;
+var startTiltUD;
+
+var DIRECTION_UP=0;
+var DIRECTION_LEFT=3;
+var DIRECTION_RIGHT=1;
+var DIRECTION_DOWN=2;
+
 
 function sendUserControl(msg) {
     socket.emit('usrCtrl', msg);
@@ -24,13 +34,46 @@ function sendPauseGame() {
     socket.emit('pauseGame');
 }
 
-document.getElementById("usercolor").value="#"+Math.floor(Math.random()*16777215).toString(16);
-/*
+
 $( document ).ready(function() {
-    console.log("Generated color:");
-    console.log("#"+Math.floor(Math.random()*16777215).toString(16));
+    var colors = jsColorPicker('.color', {
+        customBG: '#222',
+        readOnly: true,
+        size: 0,
+        // patch: false,
+        init: function(elm, colors) { // colors is a different instance (not connected to colorPicker)
+            elm.style.backgroundColor = elm.value;
+            elm.style.color = colors.rgbaMixCustom.luminance > 0.22 ? '#222' : '#ddd';
+        }
+    });
+
+    init();
 });
-*/
+
+function init() {
+    
+    // setup accelerometer controls
+    if (window.DeviceOrientationEvent) {
+        document.getElementById("debug").innerHTML = "DeviceOrientation";
+        // Listen for the deviceorientation event and handle the raw data
+        window.addEventListener('deviceorientation', gyroControls ,false);
+    }
+    else{
+        console.log("DeviceOrientationEvent is not supported");
+    }
+
+    // read cookies
+    //console.log("Document cookie: "+document.cookie);
+    var userName=getCookie("username");
+    var userColor=getCookie("usercolor");
+    if (username!=''){
+        document.getElementById('username').value=userName;
+    }
+    if (userColor!=''){
+        document.getElementById('usercolor').value=userColor;
+        document.getElementById('usercolor').style.backgroundColor=userColor;
+    }
+}
 
 
 $("#game").keydown(function (e) {
@@ -65,7 +108,6 @@ $("#game").keydown(function (e) {
 
 
 
-
 $('form').submit(function () {
     socket = io();
     setupSocket(socket);
@@ -75,93 +117,14 @@ $('form').submit(function () {
     msg.id = $('#username').val();
     playerColor=$('#usercolor').val();
     msg.color=playerColor;
+
+    setCookie("username",msg.id,365);
+    setCookie("usercolor",playerColor,365);
+
     socket.emit('client_init', msg);
     return false;
 });
 
-
-function drawEmptyGameField() {
-    console.log("drawEmptyGameField");
-    if (typeof(canvas)=='undefined')
-        canvas = document.getElementById("gameCanvas");
-    var cellH=Math.floor((window.innerHeight-2)/(gameHeight));
-    var cellW=Math.floor((window.innerWidth-2)/(gameWidth));
-    cellSize= cellH<cellW ? cellH : cellW;
-    canvas.width = gameWidth*cellSize;
-    canvas.height = gameHeight*cellSize;
-    canvas.style.margin="auto";
-
-    if (typeof(ctx)=='undefined')
-        ctx = canvas.getContext('2d');
-    ctx.beginPath();
-    ctx.strokeStyle = gridColor;
-    ctx.lineWidth = "1";
-    for (var i = 1; i < gameHeight; i++) {
-        ctx.moveTo(0, i * cellSize);
-        ctx.lineTo(gameWidth * cellSize, i * cellSize);
-    }
-    for (var i = 1; i < gameWidth; i++) {
-        ctx.moveTo(i * cellSize, 0);
-        ctx.lineTo(i * cellSize, gameHeight * cellSize);
-    }
-    ctx.stroke();
-}
-
-function drawData(x, y, id, type, color) {
-    if (typeof(canvas)=='undefined')
-        canvas = document.getElementById("gameCanvas");
-    if (typeof(ctx)=='undefined')
-        ctx = canvas.getContext('2d');
-
-    if (id == 'empty') {
-        //console.log("clearing x="+x+" y="+y);
-        ctx.beginPath();
-        ctx.fillStyle = gameFieldColor;
-        ctx.strokeStyle = gridColor;
-        ctx.lineWidth = "1";
-        ctx.rect(cellSize * x+2, cellSize * y+2, cellSize-2, cellSize-2);
-        ctx.fill();
-    }
-    else {
-        if (id == snakeId) {
-            ctx.beginPath();
-            ctx.fillStyle = playerColor;
-            ctx.strokeStyle = gridColor;
-            ctx.lineWidth = "1";
-            ctx.rect(cellSize * x+2, cellSize * y+2, cellSize-2, cellSize-2);
-            ctx.fill();
-
-        }
-        else {
-            ctx.beginPath();
-            ctx.strokeStyle = gridColor;
-            ctx.lineWidth = "1";
-
-            if (!enemyColors && type=='snake'){
-                ctx.fillStyle = "orange";
-            }
-            else{
-                ctx.fillStyle = color;
-            }
-
-            if (type=='bonus'){
-                ctx.arc(cellSize*x+cellSize/2, cellSize * y+cellSize/2, cellSize/2-2, 0, 2*Math.PI);
-            }
-            else {
-                ctx.rect(cellSize*x+2, cellSize * y+2, cellSize-2, cellSize-2);
-            }
-            ctx.fill();
-        }
-    }
-}
-
-function drawGameField() {
-    for (var i = 0; i < gameHeight; i++) {
-        for (var j = 0; j < gameWidth; j++) {
-            drawData(j, i, field[j + i * gameWidth].id, field[j + i * gameWidth].type, field[j + i * gameWidth].color);
-        }
-    }
-}
 
 function onclickCloseTopScore(){
     console.log("onclickCloseTopScore");
@@ -211,10 +174,7 @@ function setupSocket(socket) {
         var topScoreTable=document.getElementById("topScoresTable");
         topScoreTable.innerHTML="";
         for (var topRecord in topScores){
-            //console.log("topRecord:");
-            //console.log(topScores[topRecord]);
             var newRow=topScoreTable.insertRow();
-
             var newCell=newRow.insertCell();
             newCell.className="topScoreNameCell";
             newCell.innerText=(topScores[topRecord]).name;
@@ -237,9 +197,6 @@ function setupSocket(socket) {
                     }
                 }
             );
-
-
-
     });
 
     socket.on('connecterr', function (msg) {
@@ -292,11 +249,5 @@ function setupSocket(socket) {
         }
         //console.log("gameData done");
     });
-
-    function dateToStr(date){
-        var dt=new Date(date);
-        var str=dt.getDate()+"/"+dt.getMonth()+"/"+dt.getFullYear()+" "; // +dt.getHours()+":"+dt.getMinutes();
-        return str;
-    }
 }
 

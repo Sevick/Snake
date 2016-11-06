@@ -1,7 +1,7 @@
 var express = require('express'); // Get the module
-var cookieParser = require('cookie-parser');
+//var cookieParser = require('cookie-parser');
 var app = express(); //
-app.use(cookieParser());
+//app.use(cookieParser());
 var path = require('path');
 
 //var app = require('express')();
@@ -22,14 +22,16 @@ var fieldWidth = 100;
 var fieldHeight = 50;
 var spawnMargin = 10;
 var userId = 10;
-var gameUpdateDelay = 100;
+var gameUpdateDelay = 120;
 var lastGameObjId = 100;
 var bonusLimit = 25;
 var bonusCount = 0;
 var bonusDelay = 5; // in game ticks
-var bonusesTypes = [{color: "green", grow: 1, score: 5, type: 'bonus'},
+var bonusesTypes = [
+    {color: "green", grow: 1, score: 5, type: 'bonus'},
     {color: "yellow", grow: 3, score: 10, type: 'bonus'},
-    {color: "white", grow: 5, score: 15, type: 'bonus'}];
+    {color: "white", grow: 5, score: 15, type: 'bonus'}
+];
 
 var gamePaused = false;
 var tickNumber = 0;
@@ -37,19 +39,30 @@ var lastScoreWrite = 1;
 
 var config = {port: 3000};
 
-var DIRECTION_UP = 0;
-var DIRECTION_LEFT = 3;
-var DIRECTION_RIGHT = 1;
-var DIRECTION_DOWN = 2;
+var cDir = {
+    up: 0,
+    right: 1,
+    down: 2,
+    left: 3
+};
+var cDirRev = {
+    0: 'up',
+    1: 'right',
+    2: 'down',
+    3: 'left',
+};
+
+// abstraction XD
+function log(stuff) {
+    console.log(stuff);
+}
+
 var WRITE_TOP_SCORE_TIMELIMIT = 1000;
 
 //var SECRETKEY = 'Hhyu768mnb3909jVBjjk0kjj5Yj22kKM';
 
-
-
-function init() {
-
-    console.log("Reading config");
+function initConfig() {
+    log("Reading config");
     try {
         var configFile = fs.readFileSync(__dirname + '/config/snakes.conf', 'utf8', 'r');
         if (typeof(configFile) === 'undefined' || configFile == null) {
@@ -62,23 +75,31 @@ function init() {
     catch (err) {
         writeConfig();
     }
+    return configFile;
+}
 
-
-    console.log("Loading top scores");
+function initTopScores(configFile) {
+    log("Loading top scores");
     try {
         var topScoreFile = fs.readFileSync(__dirname + '/data/snakes.score', 'utf8', 'r');
-        if (typeof(configFile) !== 'undefined' || configFile != null) {
-            //console.log(topScoreFile);
+        if (typeof(topScoreFile) !== 'undefined' || topScoreFile != null) {
+            //log(topScoreFile);
             topScores = JSON.parse(topScoreFile);
             topScores.sort(function (a, b) {
                 return (b.score - a.score);
             });
-            //console.log(topScores);
+            //log(topScores);
         }
     }
     catch (err) {
-        console.log("Error reading /data/snakes.score");
+        log("Error reading /data/snakes.score");
     }
+}
+
+
+function init() {
+    initConfig();
+    initTopScores();
 
     app.use(express.static(path.join(__dirname, 'public')));
     app.use(express.static(path.join(__dirname, 'jslib')));
@@ -88,15 +109,14 @@ function init() {
     });
 
     http.listen(config.port, function () {
-        console.log('listening on *:3000');
+        log('listening on *:3000');
         field = getClearField();
     });
 }
 
-
 function writeConfig() {
-    console.log("writeConfig");
-    console.log(config);
+    log("writeConfig");
+    log(config);
     fs.writeFileSync(__dirname + '/config/snakes.conf', JSON.stringify(config));
 }
 
@@ -120,20 +140,21 @@ function getNextObjId() {
     return (lastGameObjId);
 }
 
-function movePoint(point, direction) {
-    var deltas = getDeltas(direction);
-    var newPoint = new Object();
-    newPoint.x = point.x + deltas.deltaX;
-    newPoint.y = point.y + deltas.deltaY;
-    return (newPoint);
+function adjustPoint(point, direction, threshold) {
+    threshold = threshold || 0;
+    if (direction == cDir.up) return new Point(point.x, point.y - (1 + threshold));
+    if (direction == cDir.down) return new Point(point.x, point.y + (1 + threshold));
+    if (direction == cDir.left) return new Point(point.x - (1 + threshold), point.y);
+    if (direction == cDir.right) return new Point(point.x + (1 + threshold), point.y);
 }
+
 
 //----------------------------------------
 function newBonus() {
-    //console.log("newBonus");
+    //log("newBonus");
     var point = randomAvailablePoint(0, 0, 0);	// get free point and check than [count] cell on the direction is free too
     if (typeof(point) === "undefined" || point === null) {
-        console.log("Unable to find space for bonus");
+        log("Unable to find space for bonus");
         return null;
     }
     var bonus = new Object();
@@ -153,7 +174,7 @@ function newBonus() {
 }
 
 function deleteBonus(id) {
-    console.log("deleteBonus   id=" + id);
+    log("deleteBonus   id=" + id);
     bonusCount--;
     var i = getObjIndexById(id);
     gameobjs.splice(i, 1);
@@ -162,7 +183,7 @@ function deleteBonus(id) {
 
 //-----------------------------------------------
 function newSnake(player) {
-    console.log("newSnake");
+    log("newSnake");
     var snake = new Object();
 
     snake.id = getNextObjId();
@@ -174,27 +195,32 @@ function newSnake(player) {
     snake.update = snakeUpdate;
     snake.grow = 0;
 
-    var point = randomAvailablePoint(snake.direction, 10, fieldWidth);	// get free point and check than [count] cell on the direction is free too
-    console.log("got random point: x=" + point.x + "  y=" + point.y);
+    //var point = randomAvailablePoint(snake.direction, 10, fieldWidth);	// get free point and check than [count] cell on the direction is free too
+
+    var snakePoint = getRandomCellForSnake(10, 10);
+    var point = snakePoint.point;
+    snake.direction = snakePoint.direction;
+
+    log("got random point: x=" + point.x + "  y=" + point.y);
     if (typeof(point) === "undefined" || point === null) {
-        console.log("Unable to create snake for player");
+        log("Unable to create snake for player");
         throw "No free space to create snake. Please retry later.";
     }
-    var nextPoint = movePoint(point, snake.direction);
+    var nextPoint = adjustPoint(point, snake.direction);//  movePoint();
     snake.body.push(nextPoint);
     setFieldData(nextPoint, snake.id, snake.type, player.color);
     snake.body.push(point);
     setFieldData(point, snake.id, snake.type, player.color);
     gameobjs.push(snake);
 
-    console.log("new snake created");
+    log("new snake created");
     return (snake);
 }
 
 function deleteSnake(snake) {
-    console.log("deleteSnake   Removing snake's body cells: " + snake.body.length);
+    log("deleteSnake   Removing snake's body cells: " + snake.body.length);
     for (var point of snake.body) {
-        //console.log("clear   x="+point.x+"   y="+point.y)
+        //log("clear   x="+point.x+"   y="+point.y)
         setFieldData(point, 'empty', null, null);
     }
     for (var i = 0; i < gameobjs.length; i++) {
@@ -205,41 +231,79 @@ function deleteSnake(snake) {
     }
 }
 
+function commandEq(c1, c2) {
+    return (c1.type == c2.type && c1.value == c2.value);
+}
+
+//-----------------------------------------------
+function Cursor(buffer, curDir) {
+    var buffer = buffer || 5;
+    var control = [new Action(0, curDir)];
+    return {
+        hasNext: function () {
+            return control.length > 1;
+        },
+        get: function () {
+            //log(control.length - 1);
+            var val = control[1];
+            control.shift();
+            //log(val);
+            return val;
+        },
+        set: function (val) {
+            //log(control[control.length - 1]);
+            //log(val);
+            if (!commandEq(control[control.length - 1], val)) {
+                log(control[control.length - 1].value + "," + val.value + ":" + commandEq(control[control.length - 1], val));
+                control.push(val);
+                if (control.length > buffer) {
+                    control.shift();
+                }
+            }else{
+                log(val.value + " dropped from queue");
+            }
+        },
+        show: function () {
+            return control;
+        }
+    }
+}
+
 
 //-----------------------------------------------
 function newPlayer(userId, color, socket) {
-    console.log("newPlayer");
+    log("newPlayer");
 
     var player = new Object();
     try {
-        snake = newSnake(player, "red");
-        snake.player = player;
+        player.snake = newSnake(player, "red");
         player.id = getNextObjId();
         player.color = color;
         player.name = userId;
         player.socket = socket;
-        players.push(player);
-        player.snake = snake;
         player.score = 0;
-        console.log("new player created");
+        player.controlStackCursor = new Cursor(4, player.snake.direction);
+
+        players.push(player);
+        log("new player created");
 
     }
     catch (err) {
-        console.log("ERR: New player creation failed");
+        log("ERR: New player creation failed");
         throw err;
     }
     return (player);
 }
 
 function deletePlayer(player) {
-    if (typeof(player)==='undefined')
+    if (typeof(player) === 'undefined')
         return;
-    console.log("deletePlayer  player.id="+player.id+"  socket.id="+player.socket.id);
+    log("deletePlayer  player.id=" + player.id + "  socket.id=" + player.socket.id);
     var istopscore = checkTopScore(player);
-    //console.log(player);
+    //log(player);
     for (var p of players) {
         if (p == player) {
-            console.log("player found");
+            log("player found");
             try {
                 var msg = new Object();
                 msg.score = player.score;
@@ -248,8 +312,8 @@ function deletePlayer(player) {
                 io.sockets.connected[player.socket.id].emit("gameover", msg);
             }
             catch (err) {
-                console.log("WARN: user already disconnected");
-                console.log("WARN: " + err);
+                log("WARN: user already disconnected");
+                log("WARN: " + err);
             }
             deleteSnake(p.snake);
             players.splice(players.indexOf(player), 1);
@@ -274,6 +338,27 @@ function notifyPlayerStatsChanged(player) {
 }
 
 
+function processPlayerControlStack(player) {
+    var cursor = player.controlStackCursor;
+    if (!cursor.hasNext()) return;
+    var curAction = cursor.get();
+    if (typeof(curAction) === 'undefined') return;
+    if (curAction.type === 'dir') {
+        player.snake.direction = curAction.value;
+    }
+}
+
+function addPlayerControlStack(player, action) {
+    player.controlStackCursor.set(action);
+}
+
+
+function Action(type, value) {
+    this.type = type || "dir";
+    this.value = value || 0;
+}
+
+
 //-----------------------------------------------
 function getClearField() {
     var clearField = new Array(fieldHeight * fieldWidth);
@@ -281,7 +366,7 @@ function getClearField() {
     emptyFieldData.id = 'empty';
     emptyFieldData.color = null;
     clearField.fill(emptyFieldData);
-    console.log("field created");
+    log("field created");
     return clearField;
 }
 
@@ -299,24 +384,35 @@ function SnakePoint(point, direction) {
 }
 
 
-function getRandomCellForSnake() {
-    var point = new Point(Math.round(spawnMargin + (fieldWidth - spawnMargin * 2) * Math.random()),
-        Math.round(spawnMargin + (fieldHeight - spawnMargin * 2) * Math.random()));
-
-    var direction = Math.round(Math.random() * 4);
+function getRandomCellForSnake(safetyZoneLength, retriesLimit) {
+    var point;
+    var direction;
     var fieldWidthCenter = (fieldWidth - spawnMargin * 2) / 2;
-    if (point.x < fieldWidthCenter / 2) {
-        direction = DIRECTION_RIGHT;
-    }
-    if (point.x > fieldWidthCenter / 2 + fieldWidthCenter) {
-        direction = DIRECTION_LEFT;
-    }
-    var fieldHeightCenter = (fieldHeight - spawnMargin * 2) / 2;
-    if (point.y < fieldHeightCenter / 2) {
-        direction = DIRECTION_DOWN;
-    }
-    if (point.y > fieldHeightCenter + fieldHeightCenter / 2) {
-        direction = DIRECTION_UP;
+    var retries = 0;
+    var checkResult;
+    do {
+        point = getRandomPoint(spawnMargin);
+
+        direction = cDir.right;
+        if (point.x < fieldWidthCenter / 2) {
+            direction = cDir.up;
+        }
+        if (point.x > fieldWidthCenter / 2 + fieldWidthCenter) {
+            direction = cDir.left;
+        }
+        var fieldHeightCenter = (fieldHeight - spawnMargin * 2) / 2;
+        if (point.y < fieldHeightCenter / 2) {
+            direction = cDir.down;
+        }
+        if (point.y > fieldHeightCenter + fieldHeightCenter / 2) {
+            direction = cDir.right;
+        }
+        retries++;
+        checkResult = checkNextPoints(point, direction, safetyZoneLength);
+    } while (!checkResult && retries < retriesLimit);
+
+    if (!checkResult) {
+        throw "No space for new snake";
     }
 
     var snakePoint = new SnakePoint(point, direction);
@@ -324,44 +420,41 @@ function getRandomCellForSnake() {
 }
 
 
+function getRandomPoint(margin) {
+    margin = margin || spawnMargin;
+    return new Point(
+        Math.round(margin + (fieldWidth - margin * 2) * Math.random()),
+        Math.round(margin + (fieldHeight - margin * 2) * Math.random())
+    );
+}
 function randomAvailablePoint(direction, count, margin) {
-    //console.log("randomAvailablePoint");
-    var point = new Object();
-    var deltas = getDeltas(direction)
-    point.x = Math.round(spawnMargin + (fieldWidth - spawnMargin * 2) * Math.random());
-    point.y = Math.round(spawnMargin + (fieldHeight - spawnMargin * 2) * Math.random());
+    //log("randomAvailablePoint");
+    var point = getRandomPoint(spawnMargin);
     var retryCount = 0;
 
-    while (!checkNextPoints(point, direction, count) && retryCount < 10) {
-        point.x = Math.round(spawnMargin + (fieldWidth - spawnMargin * 2) * Math.random());
-        point.y = Math.round(spawnMargin + (fieldHeight - spawnMargin * 2) * Math.random());
-        retryCount++;
+    while (!checkNextPoints(point, direction, count) && retryCount++ < 10) {
+        point = getRandomPoint(spawnMargin);
     }
     if (retryCount === 10) {
-        console.log('unable to find free space');
-        return (null);
+        log('unable to find free space');
+        return (new Point(0, 0));
     }
-    //console.log("randomAvailablePoint completed");
+    //log("randomAvailablePoint completed");
     return (point);
 }
 
 
 function checkNextPoints(point, direction, count) {
-    var deltas = getDeltas(direction);
-    //var curPoint = point;
-    var curPoint = new Object();
-    curPoint.x = point.x;
-    curPoint.y = point.y;
+    var curPoint = point;
     for (var i = 0; i <= count; i++) {
         if (fieldData(curPoint.x, curPoint.y) != 'empty') {
-            //console.log("free space check failed. Found: "+fieldData(curPoint.x,curPoint.y));
+            //log("free space check failed. Found: "+fieldData(curPoint.x,curPoint.y));
             return (false);
         }
         else {
-            //console.log("free space check passed. Found: " + fieldData(curPoint.x, curPoint.y));
+            //log("free space check passed. Found: " + fieldData(curPoint.x, curPoint.y));
         }
-        curPoint.x += deltas.deltaX;
-        curPoint.y += deltas.deltaY;
+        curPoint = adjustPoint(point, direction);
     }
     return (true);
 }
@@ -369,14 +462,14 @@ function checkNextPoints(point, direction, count) {
 
 //-----------------------------------------------
 io.sockets.on('connection', function (socket) {
-    console.log('connection');
+    log('connection');
 
     socket.on('client_init', function (data) {
-        console.log("client_init.  data: " + data);
-        console.log("playerid:" + data.id);
+        log("client_init.  data: " + data);
+        log("playerid:" + data.id);
         try {
             var player = newPlayer(data.id, data.color, socket);
-            console.log('playerId: ' + data.id + '  socketId: ' + socket.id);
+            log('playerId: ' + data.id + '  socketId: ' + socket.id);
             //servio.sockets.socket(id).emit('hello');
             var msg = new Object();
             msg.userId = data.id;
@@ -389,7 +482,7 @@ io.sockets.on('connection', function (socket) {
             sendField(socket);
         }
         catch (err) {
-            console.log("ERR: Unable to create player");
+            log("ERR: Unable to create player");
             var msg = new Object();
             msg.err = "Unable to create player <- " + err;
             socket.emit('connecterr', msg);
@@ -397,30 +490,29 @@ io.sockets.on('connection', function (socket) {
     });
 
     socket.on('disconnect', function () {
-        console.log("disconnect");
+        log("disconnect");
         var len = 0;
         deletePlayer(getPlayerBySocket(socket));
     });
 
-    socket.on('usrCtrl', function (data, id_player) {
-        console.log("usrCtrl  socketId=" + socket.id);
+    socket.on('usrCtrl', function (data) {
         p = getPlayerBySocket(socket);
         if (typeof(p) !== 'undefined' && p !== null) {
-            p.snake.direction = data;
+            addPlayerControlStack(p, new Action('dir', data));
         }
         else {
-            console.log("ERR: Player not found")
+            log("ERR: Player not found")
         }
     });
 
     /*
      socket.on('pauseGame', function () {
-     console.log("pauseGame");
+     log("pauseGame");
      gamePaused = !gamePaused;
      });
 
      socket.on('freezeSnake', function () {
-     console.log("freezeSnake");
+     log("freezeSnake");
      p = getPlayerBySocket(socket);
      if (p.snake.status == 'frozen') {
      p.snake.status = 'alive';
@@ -441,52 +533,35 @@ function sendField(socket) {
 }
 
 
-function getDeltas(direction) {
-    var deltas = new Object();
-    deltas.deltaX = 0;
-    deltas.deltaY = 0;
-    switch (direction) {
-        case DIRECTION_UP:   // north
-            deltas.deltaY = -1;
-            break;
-        case DIRECTION_RIGHT:   // east
-            deltas.deltaX = 1;
-            break;
-        case DIRECTION_DOWN:   // south
-            deltas.deltaY = 1;
-            break;
-        case DIRECTION_LEFT:   // west
-            deltas.deltaX = -1;
-            break;
-    }
-    return (deltas);
+function detectOutOfBoundaries(curPoint) {
+    return curPoint.x < 0 || curPoint.x >= fieldWidth
+        || curPoint.y < 0 || curPoint.y >= fieldHeight;
 }
 
-
 function snakeUpdate(snake) {
-    //console.log("snakeUpdate #"+snake.id);
+    //log("snakeUpdate #"+snake.id);
     if (snake.status == 'frozen' || snake.status == 'dead')
         return;
 
-    var newHeadPoint = movePoint(snake.body[0], snake.direction);
-    //console.log("oldX="+snake.body[0].x+"  oldY="+snake.body[0].y+")   (newX="+newHeadPoint.x+"  newY="+newHeadPoint.y+")");
+    var newHeadPoint = adjustPoint(snake.body[0], snake.direction);
+    //log("oldX="+snake.body[0].x+"  oldY="+snake.body[0].y+")   (newX="+newHeadPoint.x+"  newY="+newHeadPoint.y+")");
 
-    if (newHeadPoint.x >= fieldWidth || newHeadPoint.x < 0 || newHeadPoint.y >= fieldHeight || newHeadPoint.y < 0) {
+    if (detectOutOfBoundaries(newHeadPoint)) {
         // snake is dead
         snake.status = 'dead';
-        console.log("Snake tried to escape and shot down");
+        log("Snake tried to escape and shot down");
     }
     else {
         // check for barriers/objects and interact with them
-        //console.log(fieldData(newHeadPoint.x,newHeadPoint.y));
+        //log(fieldData(newHeadPoint.x,newHeadPoint.y));
         if (fieldData(newHeadPoint.x, newHeadPoint.y) != 'empty') {
-            //console.log(fieldData(newHeadPoint.x,newHeadPoint.y));
+            //log(fieldData(newHeadPoint.x,newHeadPoint.y));
             var gameObject = getGameObjectById(fieldData(newHeadPoint.x, newHeadPoint.y));
             if (typeof(gameObject) !== 'undefined') {
                 switch (gameObject.type) {
                     case 'bonus':
                         // snake should eat the bonus
-                        console.log("snake #" + snake.id + " eats bonus  grow:" + gameObject.grow + "   score:" + gameObject.score);
+                        log("snake #" + snake.id + " eats bonus  grow:" + gameObject.grow + "   score:" + gameObject.score);
                         deleteBonus(gameObject.id);
                         changeScore(snake.player, gameObject.score * players.length);
                         snake.grow = snake.grow + gameObject.grow;
@@ -497,12 +572,12 @@ function snakeUpdate(snake) {
                         }
                     default:
                         snake.status = 'dead';
-                        console.log("Snake found something and die. It found: " + gameObject.type);
+                        log("Snake found something and die. It found: " + gameObject.type);
                         break;
                 }
             }
             else {
-                console.log("ERR: snake found undefined object");
+                log("ERR: snake found undefined object");
             }
         }
         if (snake.status !== 'dead') {
@@ -512,7 +587,7 @@ function snakeUpdate(snake) {
                 setFieldData(tailPoint, 'empty');
             }
             else {
-                //console.log("Snake is growing  grow="+snake.grow);
+                //log("Snake is growing  grow="+snake.grow);
                 snake.grow--;
             }
             snake.body.unshift(newHeadPoint);
@@ -544,15 +619,15 @@ function setFieldData(point, id, type, color) {
 
 
 function processCommandStack() {
-    //console.log("processing commandsStack with "+commandsStack.length+" commands");
+    //log("processing commandsStack with "+commandsStack.length+" commands");
     for (var i = 0; i < commandsStack.length; i++) {
-        //console.log(commandsStack[i]);
+        //log(commandsStack[i]);
         //var cellVal=new CellValue(commandsStack[i].id, commandsStack[i].color);
         var cellVal = new Object();
         cellVal.id = commandsStack[i].id;
         cellVal.type = commandsStack[i].type;
         cellVal.color = commandsStack[i].color;
-        //console.log(cellVal);
+        //log(cellVal);
         field[commandsStack[i].point.x + commandsStack[i].point.y * fieldWidth] = cellVal;
     }
 }
@@ -564,8 +639,8 @@ function getPlayerBySocket(socket) {
             return players[p];
         }
     }
-    console.log("ERR: getPlayerBySocket can find player");
-    console.log(socket);
+    log("ERR: getPlayerBySocket can find player");
+    log(socket);
 }
 
 
@@ -604,7 +679,7 @@ function updateGameStats() {
         io.sockets.emit('gameStats', stats);
     }
     catch (err) {
-        console.log("updateGameStats failed. socket.id=" + socket.id);
+        log("updateGameStats failed. socket.id=" + socket.id);
     }
 
 }
@@ -613,7 +688,7 @@ function updateGameStats() {
 function updateGameData() {
 
     if (tickNumber % 10 == 0) {
-        //console.log("tick#" + tickNumber+ "  gameobjs.length="+gameobjs.length+"  players.length="+players.length);
+        //log("tick#" + tickNumber+ "  gameobjs.length="+gameobjs.length+"  players.length="+players.length);
     }
     if (gamePaused)
         return;
@@ -635,13 +710,16 @@ function updateGameData() {
     // process commands in stack
     //processCommandStack();
     // process dead snake removal actions
-    //processCommandStack();
+    processCommandStack();
 
+    //FIXME: SHOULD WE DO THIS TWICE?
     // notify clients
-    var gameData = new Object();
-    gameData.commandsStack = commandsStack;
-    io.sockets.emit('gameData', gameData);
-    //console.log("Send commandsStack.length="+commandsStack.length);
+    // var gameData = new Object();
+    // gameData.commandsStack = commandsStack;
+    // gameData.gameTick=tickNumber;
+    // io.sockets.emit('gameData', gameData);
+
+    //log("Send commandsStack.length="+commandsStack.length);
 
 
     for (var gameObject of gameobjs) {
@@ -656,6 +734,7 @@ function updateGameData() {
     // notify clients
     var gameData = new Object();
     gameData.commandsStack = commandsStack;
+    gameData.gameTick = tickNumber;
     io.sockets.emit('gameData', gameData);
 
 
@@ -676,7 +755,7 @@ function checkTopScore(player) {
     if (typeof(player) === 'undefined' || player == null) {
         return (false);
     }
-    console.log("checkTopScore");
+    log("checkTopScore");
     var newRecord = false;
     var topIdx = 0;
     if (player.score == 0 || player.score < topScores[topScores.length - 1]) {
@@ -695,7 +774,7 @@ function checkTopScore(player) {
         }
     }
     if (newRecord) {
-        console.log("Adding topscore record: idx=" + topIdx + " with score=" + player.score);
+        log("Adding topscore record: idx=" + topIdx + " with score=" + player.score);
         topScores.splice(topIdx, 0, new topScore(player.name, player.score, new Date()));
         if (topScores.length > topCoresLimit) {
             topScores.splice(topCoresLimit);
@@ -711,9 +790,10 @@ function checkTopScore(player) {
 
 
 function writeTopScore() {
-        fs.writeFile(__dirname + '/data/snakes.score', JSON.stringify(topScores));
-        console.log("writeTopScore done");
+    fs.writeFile(__dirname + '/data/snakes.score', JSON.stringify(topScores));
+    log("writeTopScore done");
 }
 
 
 setInterval(updateGameData, gameUpdateDelay);
+

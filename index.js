@@ -174,7 +174,12 @@ function newSnake(player) {
     snake.update = snakeUpdate;
     snake.grow = 0;
 
-    var point = randomAvailablePoint(snake.direction, 10, fieldWidth);	// get free point and check than [count] cell on the direction is free too
+    //var point = randomAvailablePoint(snake.direction, 10, fieldWidth);	// get free point and check than [count] cell on the direction is free too
+
+    var snakePoint=getRandomCellForSnake(10,10);
+    var point=snakePoint.point;
+    snake.direction=snakePoint.direction;
+
     console.log("got random point: x=" + point.x + "  y=" + point.y);
     if (typeof(point) === "undefined" || point === null) {
         console.log("Unable to create snake for player");
@@ -299,24 +304,37 @@ function SnakePoint(point, direction) {
 }
 
 
-function getRandomCellForSnake() {
-    var point = new Point(Math.round(spawnMargin + (fieldWidth - spawnMargin * 2) * Math.random()),
-        Math.round(spawnMargin + (fieldHeight - spawnMargin * 2) * Math.random()));
 
-    var direction = Math.round(Math.random() * 4);
+function getRandomCellForSnake(saftyZoneLength, retriesLimit) {
+    var point;
+    var direction;
     var fieldWidthCenter = (fieldWidth - spawnMargin * 2) / 2;
-    if (point.x < fieldWidthCenter / 2) {
+    var retries=0;
+    var checkResult;
+    do {
+        point = new Point(Math.round(spawnMargin + (fieldWidth - spawnMargin * 2) * Math.random()),
+            Math.round(spawnMargin + (fieldHeight - spawnMargin * 2) * Math.random()));
+
         direction = DIRECTION_RIGHT;
-    }
-    if (point.x > fieldWidthCenter / 2 + fieldWidthCenter) {
-        direction = DIRECTION_LEFT;
-    }
-    var fieldHeightCenter = (fieldHeight - spawnMargin * 2) / 2;
-    if (point.y < fieldHeightCenter / 2) {
-        direction = DIRECTION_DOWN;
-    }
-    if (point.y > fieldHeightCenter + fieldHeightCenter / 2) {
-        direction = DIRECTION_UP;
+        if (point.x < fieldWidthCenter / 2) {
+            direction = DIRECTION_RIGHT;
+        }
+        if (point.x > fieldWidthCenter / 2 + fieldWidthCenter) {
+            direction = DIRECTION_LEFT;
+        }
+        var fieldHeightCenter = (fieldHeight - spawnMargin * 2) / 2;
+        if (point.y < fieldHeightCenter / 2) {
+            direction = DIRECTION_DOWN;
+        }
+        if (point.y > fieldHeightCenter + fieldHeightCenter / 2) {
+            direction = DIRECTION_UP;
+        }
+        retries++;
+        checkResult=checkNextPoints(point,direction,saftyZoneLength);
+    }while (!checkResult && retries<retriesLimit);
+
+    if (!checkResult){
+        throw "No space for new snake";
     }
 
     var snakePoint = new SnakePoint(point, direction);

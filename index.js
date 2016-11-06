@@ -226,6 +226,7 @@ function newPlayer(userId, color, socket) {
         players.push(player);
         player.snake = snake;
         player.score = 0;
+        player.controlStack = [];
         console.log("new player created");
 
     }
@@ -276,6 +277,32 @@ function notifyPlayerStatsChanged(player) {
     var stats = new Object();
     stats.score = player.score;
     player.socket.emit('playerStats', stats);
+}
+
+
+function processPlayerControlStack(player){
+    var curAction = player.controlStack.pop();
+    if (typeof(curAction)==='undefined')
+        return;
+    if (curAction.type === 'dir'){
+        player.snake.direction=curAction.value;
+    }
+
+}
+
+function addPlayerControlStack(player,action){
+    if ((player.controlStack.length<1) ||
+        (player.controlStack[player.controlStack.length-1].type!==action.type && player.controlStack[player.controlStack.length-1].value!==action.value)
+        ){
+
+        player.controlStack.push(action);
+    }
+}
+
+
+function Action(type, value){
+    this.type=type;
+    this.value=value;
 }
 
 
@@ -424,7 +451,8 @@ io.sockets.on('connection', function (socket) {
         console.log("usrCtrl  socketId=" + socket.id);
         p = getPlayerBySocket(socket);
         if (typeof(p) !== 'undefined' && p !== null) {
-            p.snake.direction = data;
+            addPlayerControlStack(p,new Action('dir',data));
+            //p.snake.direction = data;
         }
         else {
             console.log("ERR: Player not found")
@@ -628,6 +656,10 @@ function updateGameStats() {
 }
 
 
+
+
+
+
 function updateGameData() {
 
     if (tickNumber % 10 == 0) {
@@ -635,6 +667,12 @@ function updateGameData() {
     }
     if (gamePaused)
         return;
+
+    // process players control stacks
+    for (playerIdx in players) {
+        processPlayerControlStack(players[playerIdx]);
+    }
+
 
     // update game data
     for (var i = 0; i < gameobjs.length; i++) {
@@ -658,6 +696,7 @@ function updateGameData() {
     // notify clients
     var gameData = new Object();
     gameData.commandsStack = commandsStack;
+    gameData.gameTick=tickNumber;
     io.sockets.emit('gameData', gameData);
     //console.log("Send commandsStack.length="+commandsStack.length);
 

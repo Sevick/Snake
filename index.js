@@ -685,6 +685,10 @@ function updateGameStats() {
 }
 
 
+
+
+
+
 function updateGameData() {
 
     if (tickNumber % 10 == 0) {
@@ -692,6 +696,12 @@ function updateGameData() {
     }
     if (gamePaused)
         return;
+
+    // process players control stacks
+    for (playerIdx in players) {
+        processPlayerControlStack(players[playerIdx]);
+    }
+
 
     // update game data
     for (var i = 0; i < gameobjs.length; i++) {

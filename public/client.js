@@ -242,6 +242,7 @@ function setupSocket(socket) {
         canvas = document.getElementById("gameCanvas");
         var ctx = canvas.getContext('2d');
         var commandsStack = gameData.commandsStack;
+        var gameTick= gameData.gameTick;        // in-game timestamp
         //console.log("Commands stack length:"+commandsStack.length);
         for (var i = 0; i < commandsStack.length; i++) {
             //console.log(commandsStack[i]);

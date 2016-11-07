@@ -51,7 +51,7 @@ $( document ).ready(function() {
 });
 
 function init() {
-    
+
     // setup accelerometer controls
     if (window.DeviceOrientationEvent) {
         document.getElementById("debug").innerHTML = "DeviceOrientation";
@@ -169,12 +169,12 @@ function setupSocket(socket) {
         gameWidth = msg.gameWidth;
         gameHeight = msg.gameHeight;
         showGame();
-    });    
+    });
 
     socket.on('gameover', function (msg) {
         console.log("gameover:  msg.score=" + msg.score);
         //socket.disconnect();
-        
+
         var topScores=msg.topscores;
         //console.log("Top score:");
         //console.log(topScores);
@@ -196,14 +196,14 @@ function setupSocket(socket) {
         document.getElementById("gameover").style.display='flex';
 
         var gameoverDiv=document.getElementById("gameover");
-            gameoverDiv.focus();
-            gameoverDiv.addEventListener("keyup", function(KeyboardEvent) {
-                    if(KeyboardEvent.key == 'Enter'){  // the enter key code
-                        $('#closeTopScore').click();
-                        return false;
-                    }
+        gameoverDiv.focus();
+        gameoverDiv.addEventListener("keyup", function(KeyboardEvent) {
+                if(KeyboardEvent.key == 'Enter'){  // the enter key code
+                    $('#closeTopScore').click();
+                    return false;
                 }
-            );
+            }
+        );
     });
 
     socket.on('connecterr', function (msg) {

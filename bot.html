@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/> <!--320-->
+    <title>Snakes game</title>
+    <link rel="stylesheet" type="text/css" href="snakes.css">
+    <link rel="stylesheet"  type="text/css" href="jsColor.css" media="all">
+</head>
+
+<body>
+<div id="mainContainer">
+    <div id="login">
+        <div id="playerNameFormContainer">
+            <form id="loginForm" action="">
+                <input id="username" type="text" pattern=".{4,10}" required title="4 to 10 characters" maxlength="10" value="" autocomplete="off" autofocus placeholder="Username"/>
+                <!--<input id="usercolor" type="color">-->
+<!--                <div id="usercolor" class="trigger" value="#556B2F"><div><div style="background-color: rgb(85, 107, 47); color: rgb(221, 221, 221);"></div></div></div>-->
+                <div id="usercolor" tabindex="-1" class="color"></div>
+<!--                <input id="usercolor" class="color"/>-->
+
+                <button id="joinButton" type="submit">Join</button>
+            </form>
+        </div>
+        <div id="copyleft">Ver. <span id="version"></span></div>
+    </div>
+
+    <div id="game" tabindex="-1">
+        <canvas id="gameCanvas">Your browser does not support the HTML5 canvas tag.</canvas>
+    </div>
+
+    <div id="gameover" tabindex="-1">
+        <p id="topCaption">Top players:</p>
+        <div id="topScoresDiv">
+            <table id="topScoresTable"></table>
+        </div>
+        <button id="closeTopScore" onclick="onclickCloseTopScore()" autofocus type="submit" value="submit">Close</button>
+    </div>
+
+    <div id="playerIdContainer"><span id="playerId" hidden="hidden"><br></span>Score: <span id="score"></span></div>
+
+    <div id="gameStats">
+        Users: <span id="usersCount">0</span>
+        <table id="playersTab"></table>
+    </div>
+
+    <div id="debug"></div>
+
+
+
+</div>
+<script type="text/javascript" src="version.js"></script>
+<script type="text/javascript">
+    var rndColor="#"+Math.floor(Math.random()*16777215).toString(16);
+    document.getElementById("usercolor").style.backgroundColor=rndColor;
+    document.getElementById("usercolor").value=rndColor;
+    document.getElementById("version").innerHTML=version;
+</script>
+
+<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>
+<script type="text/javascript" src="jsColorPicker.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="tools.js"></script>
+<script src="gamefield.js"></script>
+<script src="gyro.js"></script>
+<script src="bot.js"></script>
+
+
+</body>
+</html>

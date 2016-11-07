@@ -1,7 +1,7 @@
 var express = require('express'); // Get the module
-var cookieParser = require('cookie-parser');
+//var cookieParser = require('cookie-parser');
 var app = express(); //
-app.use(cookieParser());
+//app.use(cookieParser());
 var path = require('path');
 
 //var app = require('express')();
@@ -86,6 +86,11 @@ function init() {
     app.get('/', function (req, res) {
         res.sendfile(__dirname + '/index.html');
     });
+
+    app.get('/bot', function (req, res) {
+        res.sendfile(__dirname + '/bot.html');
+    });
+
 
     http.listen(config.port, function () {
         console.log('listening on *:3000');
@@ -291,11 +296,19 @@ function processPlayerControlStack(player){
 }
 
 function addPlayerControlStack(player,action){
+    console.log("addPlayerControlStack");
+
+    if ((player.controlStack.length>=1) && !(player.controlStack[player.controlStack.length-1].type!==action.type && player.controlStack[player.controlStack.length-1].value!==action.value)){
+        console.log("action duplication found");
+    }
+
+
     if ((player.controlStack.length<1) ||
         (player.controlStack[player.controlStack.length-1].type!==action.type && player.controlStack[player.controlStack.length-1].value!==action.value)
         ){
 
         player.controlStack.push(action);
+        console.log("player.controlStack.length="+player.controlStack.length);
     }
 }
 
@@ -420,18 +433,26 @@ io.sockets.on('connection', function (socket) {
         console.log("client_init.  data: " + data);
         console.log("playerid:" + data.id);
         try {
-            var player = newPlayer(data.id, data.color, socket);
-            console.log('playerId: ' + data.id + '  socketId: ' + socket.id);
-            //servio.sockets.socket(id).emit('hello');
-            var msg = new Object();
-            msg.userId = data.id;
-            msg.socketId = socket.id;
-            msg.gameWidth = fieldWidth;
-            msg.gameHeight = fieldHeight;
-            msg.snakeId = player.snake.id;
-            socket.emit('playerid', msg);
-            updateGameStats();
+            if (data.id!=='Observer') {
+                var player = newPlayer(data.id, data.color, socket);
+                console.log('playerId: ' + data.id + '  socketId: ' + socket.id);
+                //servio.sockets.socket(id).emit('hello');
+                var msg = new Object();
+                msg.userId = data.id;
+                msg.socketId = socket.id;
+                msg.gameWidth = fieldWidth;
+                msg.gameHeight = fieldHeight;
+                msg.snakeId = player.snake.id;
+                socket.emit('playerid', msg);
+            }
+            else{
+                var msg=new Object();
+                msg.gameWidth = fieldWidth;
+                msg.gameHeight = fieldHeight;
+                socket.emit('observer', msg);
+            }
             sendField(socket);
+            updateGameStats();
         }
         catch (err) {
             console.log("ERR: Unable to create player");
@@ -447,7 +468,13 @@ io.sockets.on('connection', function (socket) {
         deletePlayer(getPlayerBySocket(socket));
     });
 
-    socket.on('usrCtrl', function (data, id_player) {
+    socket.on('usrCtrl', function (data, id_player, fn ) {
+        if (typeof(fn)!='undefined'){
+            fn('ack');
+        }
+        else{
+            console.log("fn is undefined");
+        }
         console.log("usrCtrl  socketId=" + socket.id);
         p = getPlayerBySocket(socket);
         if (typeof(p) !== 'undefined' && p !== null) {
@@ -605,13 +632,19 @@ function processCommandStack() {
 
 
 function getPlayerBySocket(socket) {
+
+    if (typeof(socket)==='undefined') {
+        console.log("ERR: getPlayerBySocket received undefined socket");
+        return;
+    }
+
     for (var p in players) {
         if (players[p].socket.id == socket.id) {
             return players[p];
         }
     }
-    console.log("ERR: getPlayerBySocket can find player");
-    console.log(socket);
+
+    console.log("ERR: getPlayerBySocket cant find player for socket"+socket.id);
 }
 
 
@@ -699,7 +732,7 @@ function updateGameData() {
     gameData.gameTick=tickNumber;
     io.sockets.emit('gameData', gameData);
     //console.log("Send commandsStack.length="+commandsStack.length);
-
+    commandsStack = [];
 
     for (var gameObject of gameobjs) {
         if (typeof(gameObject) !== 'undefined') {
@@ -711,14 +744,15 @@ function updateGameData() {
     }
 
     // notify clients
-    var gameData = new Object();
-    gameData.commandsStack = commandsStack;
-    io.sockets.emit('gameData', gameData);
-
+    if (commandsStack.length>0) {
+        var gameData = new Object();
+        gameData.commandsStack = commandsStack;
+        gameData.gameTick = tickNumber;
+        io.sockets.emit('gameData', gameData);
+    }
 
     // clear the stack
     commandsStack = [];
-
     tickNumber++;
 }
 

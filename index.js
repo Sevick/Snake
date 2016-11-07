@@ -9,6 +9,7 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var fs = require('fs');
 
+const retryLimit = 10;
 
 var players = [];
 var commandsStack = [];
@@ -109,7 +110,7 @@ function init() {
     });
 
     http.listen(config.port, function () {
-        log('listening on *:3000');
+        log('listening on *:' + config.port);
         field = getClearField();
     });
 }
@@ -197,7 +198,7 @@ function newSnake(player) {
 
     //var point = randomAvailablePoint(snake.direction, 10, fieldWidth);	// get free point and check than [count] cell on the direction is free too
 
-    var snakePoint = getRandomCellForSnake(10, 10);
+    var snakePoint = getRandomCellForSnake(10,retryLimit);
     var point = snakePoint.point;
     snake.direction = snakePoint.direction;
 
@@ -254,12 +255,12 @@ function Cursor(buffer, curDir) {
             //log(control[control.length - 1]);
             //log(val);
             if (!commandEq(control[control.length - 1], val)) {
-                log(control[control.length - 1].value + "," + val.value + ":" + commandEq(control[control.length - 1], val));
+                //log(control[control.length - 1].value + "," + val.value + ":" + commandEq(control[control.length - 1], val));
                 control.push(val);
                 if (control.length > buffer) {
                     control.shift();
                 }
-            }else{
+            } else {
                 log(val.value + " dropped from queue");
             }
         },
@@ -407,9 +408,8 @@ function getRandomCellForSnake(safetyZoneLength, retriesLimit) {
         if (point.y > fieldHeightCenter + fieldHeightCenter / 2) {
             direction = cDir.right;
         }
-        retries++;
         checkResult = checkNextPoints(point, direction, safetyZoneLength);
-    } while (!checkResult && retries < retriesLimit);
+    } while (!checkResult && ++retries < retriesLimit);
 
     if (!checkResult) {
         throw "No space for new snake";
@@ -432,10 +432,11 @@ function randomAvailablePoint(direction, count, margin) {
     var point = getRandomPoint(spawnMargin);
     var retryCount = 0;
 
-    while (!checkNextPoints(point, direction, count) && retryCount++ < 10) {
+
+    while (!checkNextPoints(point, direction, count) && ++retryCount < retryLimit) {
         point = getRandomPoint(spawnMargin);
     }
-    if (retryCount === 10) {
+    if (retryCount >= retryLimit) {
         log('unable to find free space');
         return (new Point(0, 0));
     }
@@ -683,10 +684,6 @@ function updateGameStats() {
     }
 
 }
-
-
-
-
 
 
 function updateGameData() {

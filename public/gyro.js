@@ -1,6 +1,12 @@
 /**
  * Created by S on 05.11.2016.
  */
+
+var DIRECTION_UP=0;
+var DIRECTION_LEFT=3;
+var DIRECTION_RIGHT=1;
+var DIRECTION_DOWN=2;
+
 function gyroControls(event) {
     var tiltLR = event.gamma;             // gamma is the left-to-right tilt in degrees, where right is positive
     var tiltUD = event.beta;              // beta is top-top-bottom tilt

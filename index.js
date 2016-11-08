@@ -108,6 +108,10 @@ function init() {
         res.sendfile(__dirname + '/index.html');
     });
 
+    app.get('/bot', function (req, res) {
+        res.sendfile(__dirname + '/bot.html');
+    });
+
     http.listen(config.port, function () {
         log('listening on *:3000');
         field = getClearField();
@@ -468,18 +472,26 @@ io.sockets.on('connection', function (socket) {
         log("client_init.  data: " + data);
         log("playerid:" + data.id);
         try {
-            var player = newPlayer(data.id, data.color, socket);
-            log('playerId: ' + data.id + '  socketId: ' + socket.id);
-            //servio.sockets.socket(id).emit('hello');
-            var msg = new Object();
-            msg.userId = data.id;
-            msg.socketId = socket.id;
-            msg.gameWidth = fieldWidth;
-            msg.gameHeight = fieldHeight;
-            msg.snakeId = player.snake.id;
-            socket.emit('playerid', msg);
-            updateGameStats();
+            if (data.id!=='Observer') {
+                var player = newPlayer(data.id, data.color, socket);
+                console.log('playerId: ' + data.id + '  socketId: ' + socket.id);
+                //servio.sockets.socket(id).emit('hello');
+                var msg = new Object();
+                msg.userId = data.id;
+                msg.socketId = socket.id;
+                msg.gameWidth = fieldWidth;
+                msg.gameHeight = fieldHeight;
+                msg.snakeId = player.snake.id;
+                socket.emit('playerid', msg);
+            }
+            else{
+                var msg=new Object();
+                msg.gameWidth = fieldWidth;
+                msg.gameHeight = fieldHeight;
+                socket.emit('observer', msg);
+            }
             sendField(socket);
+            updateGameStats();
         }
         catch (err) {
             log("ERR: Unable to create player");

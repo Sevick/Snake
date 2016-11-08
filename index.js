@@ -9,6 +9,9 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var fs = require('fs');
 
+const retryLimit = 10;
+const defaultCursorBuffer = 5;
+const controlBuffer = 7;
 
 var players = [];
 var commandsStack = [];
@@ -105,7 +108,7 @@ function init() {
     app.use(express.static(path.join(__dirname, 'jslib')));
 
     app.get('/', function (req, res) {
-        res.sendfile(__dirname + '/index.html');
+        res.sendFile(__dirname + '/index.html');
     });
 
     app.get('/bot', function (req, res) {
@@ -113,7 +116,7 @@ function init() {
     });
 
     http.listen(config.port, function () {
-        log('listening on *:3000');
+        log('listening on *:' + config.port);
         field = getClearField();
     });
 }
@@ -201,7 +204,7 @@ function newSnake(player) {
 
     //var point = randomAvailablePoint(snake.direction, 10, fieldWidth);	// get free point and check than [count] cell on the direction is free too
 
-    var snakePoint = getRandomCellForSnake(10, 10);
+    var snakePoint = getRandomCellForSnake(10, retryLimit);
     var point = snakePoint.point;
     snake.direction = snakePoint.direction;
 
@@ -235,36 +238,75 @@ function deleteSnake(snake) {
     }
 }
 
-function commandEq(c1, c2) {
-    return (c1.type == c2.type && c1.value == c2.value);
+function cmdEq(c1, c2) {
+    return (c1 == c2) || (c1.payload == c2.payload) || (c1 == c2.payload) || (c1.payload == c2);
+}
+
+function getPerpendicular(direction) {
+    var dx = [cDir.left, cDir.right];
+    var dy = [cDir.up, cDir.down];
+    return dx.includes(direction) ? dy : dx;
+}
+
+function getOpposite(dir) {
+    return (dir == cDir.left ? cDir.right : (dir == cDir.up ? cDir.down : (dir == cDir.right ? cDir.left : cDir.up)));
+}
+
+function isValidCommand(cmd) {
+    return cmd && cDirRev.hasOwnProperty(cmd.payload);
+}
+
+function Command(dir, ts) {
+    this.payload = dir || cDir.up;
+    this.timestamp = ts || 0;
 }
 
 //-----------------------------------------------
 function Cursor(buffer, curDir) {
-    var buffer = buffer || 5;
-    var control = [new Action(0, curDir)];
+    var buffer = buffer || defaultCursorBuffer;
+    var control = [new Command(curDir)];
+
+    var cmdByTimestamps = function (a, b) {
+        return a.timestamp - b.timestamp;
+    };
+
+    var okToRun = function (cmd) {
+        return !cmdEq(control[0], cmd) && !cmdEq(control[0], getOpposite(cmd.payload));
+    };
+
+    var toPlain = function (e) {
+        return cDirRev[e.payload].charAt(0)
+    };
+
     return {
         hasNext: function () {
             return control.length > 1;
         },
         get: function () {
-            //log(control.length - 1);
+            if (control.length == 1) return control[0].payload;
+
+            log(control.map(toPlain));
             var val = control[1];
-            control.shift();
-            //log(val);
-            return val;
+            if (okToRun(val)) {
+                control.shift();
+                return val.payload;
+            }
+            control.splice(1, 1);
+            return this.get();
         },
-        set: function (val) {
-            //log(control[control.length - 1]);
-            //log(val);
-            if (!commandEq(control[control.length - 1], val)) {
-                log(control[control.length - 1].value + "," + val.value + ":" + commandEq(control[control.length - 1], val));
-                control.push(val);
+        set: function (cmd) {
+            log(cmd);
+            if (isValidCommand(cmd)) {
+                control.push(cmd);
+                control.sort(cmdByTimestamps);
+                log(control.map(toPlain));
                 if (control.length > buffer) {
-                    control.shift();
+                    var lostCommand = control.shift();
+                    log(cDirRev[lostCommand.payload] + " dropped from queue: exceed buffer size of " + buffer);
+                    log(control.map(toPlain));
                 }
-            }else{
-                log(val.value + " dropped from queue");
+            } else {
+                log(cmd.payload + " not placed to queue");
             }
         },
         show: function () {
@@ -286,7 +328,7 @@ function newPlayer(userId, color, socket) {
         player.name = userId;
         player.socket = socket;
         player.score = 0;
-        player.controlStackCursor = new Cursor(4, player.snake.direction);
+        player.controlStackCursor = new Cursor(controlBuffer, player.snake.direction);
 
         players.push(player);
         log("new player created");
@@ -342,14 +384,10 @@ function notifyPlayerStatsChanged(player) {
 }
 
 
-function processPlayerControlStack(player) {
+function processPlayerMoveStack(player) {
     var cursor = player.controlStackCursor;
     if (!cursor.hasNext()) return;
-    var curAction = cursor.get();
-    if (typeof(curAction) === 'undefined') return;
-    if (curAction.type === 'dir') {
-        player.snake.direction = curAction.value;
-    }
+    player.snake.direction = cursor.get();
 }
 
 function addPlayerControlStack(player, action) {
@@ -357,10 +395,10 @@ function addPlayerControlStack(player, action) {
 }
 
 
-function Action(type, value) {
-    this.type = type || "dir";
-    this.value = value || 0;
-}
+// function Action(type, value) {
+//     this.type = type || "dir";
+//     this.value = value || 0;
+// }
 
 
 //-----------------------------------------------
@@ -411,9 +449,8 @@ function getRandomCellForSnake(safetyZoneLength, retriesLimit) {
         if (point.y > fieldHeightCenter + fieldHeightCenter / 2) {
             direction = cDir.right;
         }
-        retries++;
         checkResult = checkNextPoints(point, direction, safetyZoneLength);
-    } while (!checkResult && retries < retriesLimit);
+    } while (!checkResult && ++retries < retriesLimit);
 
     if (!checkResult) {
         throw "No space for new snake";
@@ -436,10 +473,11 @@ function randomAvailablePoint(direction, count, margin) {
     var point = getRandomPoint(spawnMargin);
     var retryCount = 0;
 
-    while (!checkNextPoints(point, direction, count) && retryCount++ < 10) {
+
+    while (!checkNextPoints(point, direction, count) && ++retryCount < retryLimit) {
         point = getRandomPoint(spawnMargin);
     }
-    if (retryCount === 10) {
+    if (retryCount >= retryLimit) {
         log('unable to find free space');
         return (new Point(0, 0));
     }
@@ -510,7 +548,7 @@ io.sockets.on('connection', function (socket) {
     socket.on('usrCtrl', function (data) {
         p = getPlayerBySocket(socket);
         if (typeof(p) !== 'undefined' && p !== null) {
-            addPlayerControlStack(p, new Action('dir', data));
+            addPlayerControlStack(p, data);
         }
         else {
             log("ERR: Player not found")
@@ -651,8 +689,8 @@ function getPlayerBySocket(socket) {
             return players[p];
         }
     }
-    log("ERR: getPlayerBySocket can find player");
-    log(socket);
+    log("ERR: getPlayerBySocket can not find player");
+    //log(socket);
 }
 
 
@@ -697,10 +735,6 @@ function updateGameStats() {
 }
 
 
-
-
-
-
 function updateGameData() {
 
     if (tickNumber % 10 == 0) {
@@ -711,7 +745,7 @@ function updateGameData() {
 
     // process players control stacks
     for (playerIdx in players) {
-        processPlayerControlStack(players[playerIdx]);
+        processPlayerMoveStack(players[playerIdx]);
     }
 
 

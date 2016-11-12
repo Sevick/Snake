@@ -39,7 +39,7 @@ function drawData(x, y, id, type, color) {
     if (typeof(ctx)=='undefined')
         ctx = canvas.getContext('2d');
 
-    if (id == 'empty') {
+    //if (id == 'empty') {
         //console.log("clearing x="+x+" y="+y);
         ctx.beginPath();
         ctx.fillStyle = gameFieldColor;
@@ -47,8 +47,8 @@ function drawData(x, y, id, type, color) {
         ctx.lineWidth = "1";
         ctx.rect(cellSize * x+2, cellSize * y+2, cellSize-2, cellSize-2);
         ctx.fill();
-    }
-    else {
+    // }
+    //else {
         if (id == snakeId) {
             ctx.beginPath();
             ctx.fillStyle = playerColor;
@@ -78,7 +78,7 @@ function drawData(x, y, id, type, color) {
             }
             ctx.fill();
         }
-    }
+    //}
 }
 
 

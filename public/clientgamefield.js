@@ -1,6 +1,7 @@
 /**
  * Created by S on 05.11.2016.
  */
+
 function drawEmptyGameField() {
     console.log("drawEmptyGameField");
     if (typeof(canvas)=='undefined')
@@ -80,6 +81,7 @@ function drawData(x, y, id, type, color) {
     }
 }
 
+
 function drawGameField() {
     for (var i = 0; i < gameHeight; i++) {
         for (var j = 0; j < gameWidth; j++) {
@@ -87,3 +89,5 @@ function drawGameField() {
         }
     }
 }
+
+
